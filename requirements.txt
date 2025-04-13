@@ -18,3 +18,5 @@ prophet
 
 # Matplotlib for plotting (used in Prophet plotting functions).
 matplotlib
+
+psycopg2-binary
