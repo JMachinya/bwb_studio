@@ -1,0 +1,20 @@
+# Streamlit for the web app framework.
+streamlit
+
+# SQLAlchemy for database connectivity.
+SQLAlchemy
+
+# Pandas for data manipulation.
+pandas
+
+# Altair for data visualizations.
+altair
+
+# Vega-datasets for sample datasets (for maps and more).
+vega_datasets
+
+# Prophet for time series forecasting.
+prophet
+
+# Matplotlib for plotting (used in Prophet plotting functions).
+matplotlib
