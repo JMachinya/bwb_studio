@@ -17,7 +17,15 @@ import matplotlib.pyplot as plt
 # 1) SET PAGE CONFIG AT THE VERY TOP
 ###############################################################################
 st.set_page_config(page_title="Weekly Performance Dashboard", layout="wide")
-engine = create_engine("postgresql://postgres:1999%40Johannes@localhost:5432/bwb_data")
+db_user = st.secrets["postgresql"]["user"]
+db_password = st.secrets["postgresql"]["password"]
+db_host = st.secrets["postgresql"]["host"]
+db_port = st.secrets["postgresql"]["port"]
+db_name = st.secrets["postgresql"]["dbname"]
+
+connection_string = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+engine = create_engine(connection_string)
+
 
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
