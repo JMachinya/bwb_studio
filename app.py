@@ -165,7 +165,7 @@ top10_authors_weekly = load_table("website_top10_authors_by_profit_weekly")
 
 # 4) Sidebar Configuration: Logo, Navigation & Date Range
 
-st.sidebar.image("C:/Users/machi/Downloads/MSBA Capstone Data/Project/bwb.png", width=200)
+st.sidebar.image("assets/bwb.png")
 st.sidebar.header(f"Welcome, {st.session_state.username}!")
 if st.sidebar.button("Logout", key="logout"):
     st.session_state.logged_in = False
