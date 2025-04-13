@@ -1,24 +1,73 @@
 import streamlit as st
-from sqlalchemy import create_engine, text
-from sqlalchemy.exc import IntegrityError
 import pandas as pd
 import altair as alt
 from vega_datasets import data
-import streamlit as st
 import datetime
 import os, sys
 import json
 from prophet import Prophet
 import matplotlib.pyplot as plt
+from sqlalchemy import create_engine, text
 
-
-
-###############################################################################
-# 1) SET PAGE CONFIG AT THE VERY TOP
-###############################################################################
+# ------------------------------------------------------------------------------
+# SET PAGE CONFIGURATION
+# ------------------------------------------------------------------------------
 st.set_page_config(page_title="Weekly Performance Dashboard", layout="wide")
 engine = create_engine("postgresql://postgres:1999%40Johannes@localhost:5432/bwb_data")
 
+# Step 1: Inject custom CSS at the top
+st.markdown("""
+<style>
+/* Your entire custom CSS */
+body {
+    background-color: #f2f2f2;
+}
+.login-container {
+    display: flex; 
+    justify-content: center; 
+    align-items: center; 
+    height: 90vh; 
+    flex-direction: column;
+}
+.login-box {
+    background-color: #fff; 
+    padding: 2rem 3rem; 
+    border-radius: 10px; 
+    box-shadow: 0px 4px 15px rgba(0,0,0,0.2);
+    max-width: 350px; 
+    width: 100%;
+}
+.login-box h2 {
+    text-align: center;
+    margin-bottom: 1.5rem;
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    font-weight: 600;
+}
+.login-box input {
+    width: 100%;
+    padding: 0.7rem;
+    margin-bottom: 1rem;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    font-size: 1rem;
+}
+.login-box button {
+    width: 100%;
+    padding: 0.7rem;
+    font-size: 1rem;
+    color: #fff;
+    background-color: #007bff;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.login-box button:hover {
+    background-color: #0069d9;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# Step 2: Manage session state
 if "logged_in" not in st.session_state:
     st.session_state["logged_in"] = False
 if "username" not in st.session_state:
@@ -43,16 +92,25 @@ if not st.session_state.logged_in:
             st.session_state.logged_in = True
             st.session_state.username = username
             st.success("Login successful!")
-            st.rerun()
+            st.experimental_rerun()
         else:
             st.error("Invalid credentials. Please try again.")
     
-    st.markdown("</div>", unsafe_allow_html=True)  
-    st.markdown("</div>", unsafe_allow_html=True)  
+    st.markdown("</div>", unsafe_allow_html=True)  # close .login-box
+    st.markdown("</div>", unsafe_allow_html=True)  # close .login-container
     st.stop()
-    
 
+# Step 5: Main dashboard code after login
+st.sidebar.write(f"Welcome, **{st.session_state.username}**!")
+if st.sidebar.button("Logout"):
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+    st.rerun()
+
+    
+# ----------------------------------------------------------------
 # 1) Page Config & Minimal CSS for "Boxes"
+# ----------------------------------------------------------------
 
 st.markdown("""
 <style>
@@ -95,14 +153,16 @@ h1, h2, h3, h4 {
 </style>
 """, unsafe_allow_html=True)
 
-
+###############################################################################
 # 2) Define a Helper Function to Load Data (Cached)
-
+###############################################################################
 @st.cache_data(ttl=3600)
 def load_table(table_name: str) -> pd.DataFrame:
     df = pd.read_sql(f'SELECT * FROM "{table_name}"', engine)
     if "Week" in df.columns:
-       
+        # Attempt to convert using pd.to_datetime.
+        # If conversion fails due to the value being a date range (e.g., "2021-05-24/2021-05-30"),
+        # then split on '/' and take the first date.
         try:
             df["Week"] = pd.to_datetime(df["Week"])
         except Exception:
@@ -112,14 +172,14 @@ def load_table(table_name: str) -> pd.DataFrame:
             )
     return df
 
-
+###############################################################################
 # 3) Load Precomputed Tables (Using Python-Aggregated Tables)
-
-# Google Analytics 
+###############################################################################
+# Google Analytics (Python version)
 ga_overall = load_table("ga_weekly_aggregation_python")
 ga_top = load_table("ga_weekly_top_sources_python")
 
-# Website Sales 
+# Website Sales (Python version)
 website_overall = load_table("website_weekly_overall_python")
 top10_campaigns = load_table("website_weekly_top_campaign_python")
 promotion_analysis = load_table("website_promotion_analysis_python")
@@ -131,31 +191,31 @@ website_websource = load_table("website_websource_analysis_python")
 combined_pp = load_table("website_promotion_strategy_analysis_python")
 geo_source_analysis = load_table("website_geo_source_analysis_python")
 
-# Google Ads
+# Google Ads (Python version)
 google_ads_overall = load_table("google_ads_weekly_overall_python")
 google_ads_top = load_table("google_ads_weekly_top_campaign_python")
 
-# Facebook Ads
+# Facebook Ads (Python version)
 fb_overall = load_table("facebook_ads_weekly_campaign_python")
-fb_top10 = load_table("facebook_ads_top10_campaigns_python")  
+fb_top10 = load_table("facebook_ads_top10_campaigns_python")  # Updated table name
 
 
-# Bing Ads )
+# Bing Ads (Python version)
 bing_overall = load_table("bing_ads_weekly_overall_python")
 bing_campaign = load_table("bing_ads_weekly_campaign_python")
 bing_top = load_table("bing_ads_weekly_top_campaign_python")
 
-# Affiliate Sales 
+# Affiliate Sales (Python version)
 affiliate_overall = load_table("affiliate_sales_weekly_overall_python")
 affiliate_pub = load_table("affiliate_sales_weekly_publisher_python")
 affiliate_top = load_table("affiliate_sales_weekly_top_publisher_python")
 
-# Author Analysis 
+# Author Analysis (Python version)
 top10_authors_weekly = load_table("website_top10_authors_by_profit_weekly")
 
-
+###############################################################################
 # 4) Sidebar Configuration: Logo, Navigation & Date Range
-
+###############################################################################
 st.sidebar.image("C:/Users/machi/Downloads/MSBA Capstone Data/Project/bwb.png", width=200)
 st.sidebar.header(f"Welcome, {st.session_state.username}!")
 if st.sidebar.button("Logout", key="logout"):
@@ -197,7 +257,7 @@ def filter_df_by_week(df: pd.DataFrame, start_ts, end_ts) -> pd.DataFrame:
     else:
         return df
 
-# Applying filtering to all tables.
+# Apply filtering to all tables.
 website_overall = filter_df_by_week(website_overall, start_ts, end_ts)
 top10_campaigns = filter_df_by_week(top10_campaigns, start_ts, end_ts)
 promotion_analysis = filter_df_by_week(promotion_analysis, start_ts, end_ts)
@@ -224,7 +284,7 @@ affiliate_overall = filter_df_by_week(affiliate_overall, start_ts, end_ts) if af
 affiliate_pub = filter_df_by_week(affiliate_pub, start_ts, end_ts) if affiliate_pub is not None else affiliate_pub
 affiliate_top = filter_df_by_week(affiliate_top, start_ts, end_ts) if affiliate_top is not None else affiliate_top
 
-# Precomputing overall metrics for the Overview page 
+# Precompute overall metrics for the Overview page (from website_overall, etc.)
 if not website_overall.empty:
     total_revenue = website_overall["Total_Revenue"].sum()
     total_profit = website_overall["Total_Profit"].sum()
@@ -254,9 +314,9 @@ if selected_page == "Overview":
     Bing Ads, and Google Analytics, enabling you to gauge overall health and make informed decisions.
     """)
 
-    
+    # ─────────────────────────────────────────────────────────────
     # Row 1: Website, Facebook, Google Analytics
-    
+    # ─────────────────────────────────────────────────────────────
     row1_col1, row1_col2, row1_col3 = st.columns(3)
 
     # Website Metrics Box
@@ -308,9 +368,9 @@ if selected_page == "Overview":
 
     st.markdown("---")
     
-    
+    # ─────────────────────────────────────────────────────────────
     # Row 2: Google Ads, Bing Ads, Affiliate
-    
+    # ─────────────────────────────────────────────────────────────
     row2_col1, row2_col2, row2_col3 = st.columns(3)
 
     # Google Ads Metrics Box
@@ -384,9 +444,9 @@ if selected_page == "Overview":
 
     
     st.markdown("---")
-    
+    # --- Comparison Chart: Profit from Bing, Facebook, Google Ads ---
     st.subheader("Profit Comparison: Bing vs. Facebook vs. Google Ads")
-    
+    # Create a DataFrame from computed values:
     profit_data = pd.DataFrame({
         "Platform": ["Bing Ads", "Facebook Ads", "Google Ads"],
         "Profit": [
@@ -404,7 +464,7 @@ if selected_page == "Overview":
     st.altair_chart(profit_chart, use_container_width=True)
     
     st.markdown("---")
-    
+    # --- Affiliate: Top Affiliate Websites by % Contribution ---
     st.subheader("Top Affiliate Websites by % Contribution to Revenue")
     if affiliate_pub is not None and not affiliate_pub.empty:
         # Calculate percentage dynamically
@@ -436,13 +496,13 @@ if selected_page == "Overview":
     grouped_campaigns = top10_campaigns.groupby("campaign", as_index=False).agg({
     "Total_Revenue": "sum",
     "Total_Profit": "sum",
-    
+    # Add any other columns you want, e.g. "Order_Count": "sum", ...
     })
 
-# 3) Sorting and pick top 10 by revenue 
+# 3) Sort and pick top 10 by revenue (or by profit if you prefer)
     top10 = grouped_campaigns.sort_values("Total_Revenue", ascending=False).head(10)
 
-# 4) Building your Altair chart from `top10`:
+# 4) Build your Altair chart from `top10`:
     chart = (
     alt.Chart(top10)
     .mark_bar()
@@ -458,9 +518,9 @@ if selected_page == "Overview":
     st.altair_chart(chart, use_container_width=True)
 
     
-    
+    # ----------------------
     # 2) Websource Analysis
-    
+    # ----------------------
 elif selected_page == "Website":
     st.title("Detailed Website Sales Performance")
     website_tabs = st.tabs([
@@ -471,9 +531,9 @@ elif selected_page == "Website":
         "Combined Pricing & Promotion Analysis",
         "Overall Top Campaigns"
     ])
-    
+    # ----------------------
     # 1) Overview Tab
-    
+    # ----------------------
     with website_tabs[0]:
         st.subheader("Key Metrics & Trends")
         website_sorted = website_overall.sort_values("Week")
@@ -523,30 +583,32 @@ elif selected_page == "Website":
                 tooltip=["Week", "Order_Count", "Total_Revenue", "AOV", "Profit_Margin"]
             ).properties(width=700, height=400, title="Orders vs Revenue (Bubble size = AOV)")
             st.altair_chart(bubble_chart, use_container_width=True)
+    # ----------------------
+    # 2) Websource Analysis
+    # ----------------------
     
-    
-    
+    # ----------------------
 # 2) Websource Analysis
-
+# ----------------------
     with website_tabs[1]:
         st.subheader("Weekly Websource Revenue & Profit")
         
         if not website_websource.empty:
-            
+            # Aggregate revenue by each web source over the selected date range.
             revenue_by_source = (
                 website_websource.groupby("cleaned_websource", as_index=False)
                 .agg({"Total_Revenue": "sum"})
             )
-            
+            # Sort by Total_Revenue in descending order and take the top 10 web sources.
             top_sources = revenue_by_source.sort_values("Total_Revenue", ascending=False).head(10)
             top_sources_list = top_sources["cleaned_websource"].tolist()
             
-            
+            # Filter the original DataFrame to include only rows with the top 10 web sources.
             top_websource_df = website_websource[
                 website_websource["cleaned_websource"].isin(top_sources_list)
             ].copy()
             
-            
+            # Bar chart for revenue by web source (Top 10)
             bar_chart = alt.Chart(top_websource_df).mark_bar().encode(
                 x=alt.X(
                     "cleaned_websource:N",
@@ -564,7 +626,7 @@ elif selected_page == "Website":
             ).properties(width=700, height=400, title="Revenue by Web Source (Top 10)")
             st.altair_chart(bar_chart, use_container_width=True)
             
-            
+            # Line chart for weekly revenue trend for the top 10 web sources.
             line_chart = alt.Chart(top_websource_df).mark_line(point=True).encode(
                 x=alt.X("Week:T", title="Week"),
                 y=alt.Y("Total_Revenue:Q", title="Revenue (USD)", scale=alt.Scale(zero=False)),
@@ -582,33 +644,37 @@ elif selected_page == "Website":
             st.info("No websource data available.")
 
     
-    
+    # ----------------------
+    # 3) Promotion Analysis
+    # ----------------------
+    # ----------------------
 # 3) Promotion Analysis
-
+# ----------------------
     with website_tabs[2]:
         st.subheader("Weekly Promotion Performance")
 
-        
+        # Display a raw table preview if desired (optional)
         st.markdown("### Raw Promotion Data (Preview)")
         if not promo_top10.empty:
             st.dataframe(promo_top10.head(10))
         else:
             st.info("No promotion data available for the selected date range.")
 
-        
+        # --- Global Aggregation for the Entire Selected Period ---
+        # Group the existing weekly promotion aggregates (from promo_top10) by promotion (using "promo_clean")
         global_promo = promo_top10.groupby("promo_clean", as_index=False).agg({
             "total_profit": "sum",
             "total_revenue": "sum",
             "total_orders": "sum"
         })
 
-        
+        # Sort the aggregated data by total_profit (descending) and take the top 10 promotions.
         global_top10 = global_promo.sort_values("total_profit", ascending=False).head(10)
 
         st.markdown("### Top 10 Promotions for the Selected Period")
         st.dataframe(global_top10)
 
-        
+        # --- Bar Chart for Global Top 10 Promotions by Total Profit ---
         profit_chart = alt.Chart(global_top10).mark_bar().encode(
             x=alt.X("promo_clean:N", 
                     title="Promotion", 
@@ -630,17 +696,18 @@ elif selected_page == "Website":
         if promo_uplift.empty:
             st.info("No promotion uplift data available for the selected date range.")
         else:
-            
+            # Optionally show a preview of the uplift table
             st.dataframe(promo_uplift.head(10))
 
-            
+            # --- Global Aggregation for Uplift Metrics ---
+            # Aggregate average uplift metrics per promotion across the period.
             uplift_agg = promo_uplift.groupby("promo_clean", as_index=False).agg({
                 "revenue_lift": "mean",
                 "profit_lift": "mean",
                 "orders_lift": "mean"
             })
 
-            
+            # Sort by revenue_lift (descending) and take the top 10 promotions
             top10_uplift = uplift_agg.sort_values("revenue_lift", ascending=False).head(10)
 
             st.markdown("### Top 10 Promotions by Average Revenue Lift (Global)")
@@ -677,33 +744,33 @@ elif selected_page == "Website":
             st.altair_chart(revenue_lift_chart, use_container_width=True)
             st.altair_chart(profit_lift_chart, use_container_width=True)
             st.altair_chart(orders_lift_chart, use_container_width=True)
-    
+    # ----------------------
     # 4) Pricing Strategy Analysis
-    
+    # ----------------------
     with website_tabs[3]:
         st.subheader("Weekly Pricing Strategy Performance")
 
         if pricing_strategy.empty:
             st.info("No pricing strategy data available for the selected date range.")
         else:
-            
+            # 1) Optionally display the raw data after filtering.
             st.markdown("#### Data Preview (Filtered)")
             st.dataframe(pricing_strategy.head(10))
 
-            
+            # 2) Aggregate only on the filtered DataFrame:
             agg_pricing = pricing_strategy.groupby("strategy_base", as_index=False).agg({
                 "Total_Revenue": "sum",
                 "Total_Profit": "sum",
                 "Order_Count": "sum"
             })
 
-            
+            # 3) Sort and pick top 10 by total revenue (or by profit, whichever you prefer).
             top10_strats = agg_pricing.sort_values("Total_Revenue", ascending=False).head(10)["strategy_base"].tolist()
 
-            
+            # 4) Filter out only rows from those top 10 strategies in the already-filtered data.
             filtered_pricing = pricing_strategy[pricing_strategy["strategy_base"].isin(top10_strats)]
 
-            
+            # --- Bar Chart ---
             bar_chart = alt.Chart(filtered_pricing).mark_bar().encode(
                 x=alt.X(
                     "strategy_base:N",
@@ -740,21 +807,22 @@ elif selected_page == "Website":
             st.altair_chart(line_chart, use_container_width=True)
         
 
-    
+    # ----------------------
     # 5) Combined Pricing & Promotion Analysis
-    
+    # ----------------------
+    # --- (H) Combined Pricing & Promotion Analysis using website_promotion_strategy_analysis_python ---
     with website_tabs[4]:
         st.subheader("Combined Pricing & Promotion Analysis")
         
-        
+        # Check if the combined table is not empty
         if not prom_combined.empty:
-            
+            # Sort the data by Total_Profit and Profit_Margin (both descending)
             combined_df = prom_combined.sort_values(
                 by=["Total_Profit", "Profit_Margin"],
                 ascending=[False, False]
             )
             
-            
+            # Get the best performing combination (top row)
             best_combo = combined_df.iloc[0]
             st.markdown(
                 f"**Recommendation:** The best performing combination is: Pricing Strategy **{best_combo['pricingstrategy']}**, "
@@ -762,10 +830,10 @@ elif selected_page == "Website":
                 f"with Total Profit **${best_combo['Total_Profit']:,.2f}** and Profit Margin **{best_combo['Profit_Margin']:.2f}%**."
             )
             
-            
+            # Get the top 5 combinations for visualization
             top5 = combined_df.head(5)
             
-            
+            # Create a scatter chart to display Total Profit versus Profit Margin
             scatter_chart = alt.Chart(top5).mark_circle(size=100).encode(
                 x=alt.X("Total_Profit:Q", title="Total Profit (USD)"),
                 y=alt.Y("Profit_Margin:Q", title="Profit Margin (%)"),
@@ -790,9 +858,9 @@ elif selected_page == "Website":
             st.info("No combined pricing & promotion data available.")
 
 
-    
+    # ----------------------
     # 6) Overall Top Campaigns
-    
+    # ----------------------
     with website_tabs[5]:
         st.subheader("Overall Top Campaigns")
         if not top10_campaigns .empty:
@@ -822,7 +890,7 @@ elif selected_page == "Website":
 elif selected_page == "Author Analysis":
     st.title("Author Performance Report")
     
-    
+    # Display a bar chart of top 10 authors by Total Revenue
     if not top10_authors_weekly.empty:
         top_authors_overall = top10_authors_weekly.groupby("author").agg(
             Total_Revenue=("Total_Revenue", "sum")
@@ -839,7 +907,7 @@ elif selected_page == "Author Analysis":
     else:
         st.info("No author data available for graphing.")
     
-    
+    # Display a table of top authors
     st.subheader("Search for an Author")
     
     if not top10_authors_weekly.empty:
@@ -927,15 +995,15 @@ elif selected_page == "Google Analytics":
         st.altair_chart(ga_revenue_line, use_container_width=True)
         st.markdown("---")
         
-        
+        # --- Top GA Sources by Revenue (Aggregated over the Selected Period) ---
         st.markdown("### Top GA Sources by Revenue")
         if not ga_top.empty:
-            
+            # Group by 'source' and sum over Total_Purchase_Revenue and Total_Sessions.
             ga_source_agg = ga_top.groupby("source", as_index=False).agg({
                 "Total_Purchase_Revenue": "sum",
                 "Total_Sessions": "sum"
             })
-            
+            # Sort the aggregated data in descending order by revenue and take the top 10.
             top10_ga_sources = ga_source_agg.sort_values("Total_Purchase_Revenue", ascending=False).head(10)
             
             ga_top_bar = alt.Chart(top10_ga_sources).mark_bar().encode(
@@ -980,7 +1048,7 @@ elif selected_page == "Facebook":
             lambda row: (row["revenue"] / row["clicks"]) if row["clicks"] > 0 else 0, axis=1
         )
 
-        
+        # --- KEY FIX: Weighted (Overall) ROI ---
         total_revenue = fb_data["revenue"].sum()
         total_cost = fb_data["cost"].sum()
         overall_roi_ratio = total_revenue / total_cost if total_cost > 0 else 0
@@ -1029,18 +1097,19 @@ elif selected_page == "Facebook":
         )
         st.altair_chart(fb_scatter, use_container_width=True)
         
-        
+        # --- New Section: Top Facebook Campaigns ---
         if not fb_top10.empty:
             st.markdown("---")
             st.subheader("Top 10 Facebook Campaigns for the Selected Period")
-            
+            # Aggregate the fb_top10 table by campaign.
+            # Note: Adjust the group-by column if necessary (e.g., if your column is named "campaign" instead).
             aggregated_fb = fb_top10.groupby("campaign_name", as_index=False).agg({
                 "revenue": "sum",
                 "cost": "sum"
             })
-            
+            # Compute profit
             aggregated_fb["Profit"] = aggregated_fb["revenue"] - aggregated_fb["cost"]
-            
+            # Sort by Profit descending and take top 10
             top10_fb_campaigns = aggregated_fb.sort_values("Profit", ascending=False).head(10)
             
             fb_campaign_chart = alt.Chart(top10_fb_campaigns).mark_bar().encode(
@@ -1099,19 +1168,20 @@ elif selected_page == "Bing":
         st.markdown("---")
         st.subheader("Top 10 Bing Campaigns by Profit (Selected Period)")
         
-        
+        # IMPORTANT: Adjust the grouping column name if needed.
+        # Here we use "campaign" assuming your data contains this column.
         aggregated_bing = bing_campaign.groupby("campaign_name", as_index=False).agg({
-            "Profit": "sum",            
-            "conversions_value": "sum",  
+            "Profit": "sum",            # Total Profit
+            "conversions_value": "sum",  # Total Revenue (for context)
             "clicks": "sum",
             "impressions": "sum",
-            "ROI": "mean"               
+            "ROI": "mean"               # Average ROI across weeks
         })
         
-        
+        # Sort by Profit descending and take the top 10
         top10_bing = aggregated_bing.sort_values("Profit", ascending=False).head(10)
         
-        
+        # Create a bar chart from the aggregated data
         chart = alt.Chart(top10_bing).mark_bar().encode(
             x=alt.X("campaign_name:N", sort="-y", title="Campaign"),
             y=alt.Y("Profit:Q", title="Total Profit (USD)", scale=alt.Scale(zero=False)),
@@ -1125,11 +1195,11 @@ elif selected_page == "Bing":
 elif selected_page == "Affiliate":
     st.title("Weekly Affiliate Sales Performance")
     
-    
+    # 1) Check if affiliate_overall is empty
     if affiliate_overall.empty:
         st.info("No Affiliate Sales data available for the selected range.")
     else:
-        
+        # Overall Affiliate Metrics
         total_sales = affiliate_overall["Total_Sales"].sum()
         total_commission = affiliate_overall["Total_Commission"].sum()
         total_fees = affiliate_overall["Total_Fees"].sum()
@@ -1151,11 +1221,12 @@ elif selected_page == "Affiliate":
         with col5:
             st.metric("Total Orders", f"{order_count:,}")
             
-        
+        # 2) Create a daily or weekly aggregated DataFrame
+        # Here we create a daily aggregator as an example:
         affiliate_daily = (
             affiliate_overall
             .copy()
-            .assign(date_only=lambda df: df["Week"].dt.date)   
+            .assign(date_only=lambda df: df["Week"].dt.date)   # extract date portion
             .groupby("date_only", as_index=False)
             .agg({"Total_Sales": "sum"})
             .rename(columns={"date_only": "Date"})
@@ -1178,14 +1249,14 @@ elif selected_page == "Affiliate":
         st.markdown("---")
         st.subheader("Top Affiliate Websites by Sales & Profit")
         
-        
+        # 4) Show a simple bar chart for top affiliate websites
         agg_affiliate = affiliate_pub.groupby("publishername", as_index=False).agg({
         "Total_Sales": "sum",
         "Total_Commission": "sum",
         "Net_After_Commission": "sum",
         "Order_Count": "sum"
         })
-                
+                # Sort the aggregated data by Total_Sales in descending order and select the top 10 publishers.
         top_affiliate = agg_affiliate.sort_values("Total_Sales", ascending=False).head(10)
                 
                 # Create a bar chart based on the aggregated top 10 data.
@@ -1205,7 +1276,7 @@ elif selected_page == "Affiliate":
                     title="Top 10 Affiliate Websites by Sales (Selected Period)"
                 )
             
-            
+            # Scatter chart for Sales vs Net Revenue
         scatter_chart = (
                 alt.Chart(top_affiliate)
                 .mark_circle(size=100)
@@ -1224,18 +1295,14 @@ if selected_page == "Analytics":
     st.title("Interactive Data Analytics")
     st.markdown("### Explore Data, Build Your Own Plots, and Perform Statistical Analysis")
     
-   
-    dataset_option = st.selectbox("Choose Dataset:", ["Website Sales Overall", "Google Analytics", "Affiliate Sales", "Google Ads", "Facebook Ads", "Bing Ads"])
+    ## -- Dataset Selection --
+    dataset_option = st.selectbox("Choose Dataset:", ["Website Sales Overall", "Google Analytics", "Affiliate Sales"])
     if dataset_option == "Website Sales Overall":
         df = website_overall.copy()
     elif dataset_option == "Google Analytics":
         df = ga_overall.copy()
     elif dataset_option == "Affiliate Sales":
         df = affiliate_overall.copy()
-    elif dataset_option == "Google Ads":
-        df = google_ads_overall.copy()
-    elif dataset_option == "Facebook Ads":
-        df = fb_overall.copy()  
     else:
         df = website_overall.copy()
     
