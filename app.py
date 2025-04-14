@@ -14,9 +14,9 @@ import matplotlib.pyplot as plt
 
 
 
-###############################################################################
-# 1) SET PAGE CONFIG AT THE VERY TOP
-###############################################################################
+
+
+
 st.set_page_config(page_title="Weekly Performance Dashboard", layout="wide")
 db_user = st.secrets["postgresql"]["user"]
 db_password = st.secrets["postgresql"]["password"]
@@ -122,7 +122,7 @@ def load_table(table_name: str) -> pd.DataFrame:
     return df
 
 
-# 3) Load Precomputed Tables (Using Python-Aggregated Tables)
+
 
 # Google Analytics 
 ga_overall = load_table("ga_weekly_aggregation_python")
@@ -255,12 +255,10 @@ else:
 st.markdown('<div class="page-container">', unsafe_allow_html=True)
 
 if selected_page == "Overview":
-    st.title("Executive Overview")
+    st.title("BWB Analytics")
     
     st.markdown("""
-    This dashboard provides an integrated view of Better World Books’ multi‐platform performance.
-    It aggregates key metrics from Website Sales, Affiliate Marketing, Facebook Ads, Google Ads, 
-    Bing Ads, and Google Analytics, enabling you to gauge overall health and make informed decisions.
+    **Welcome to the Better World Books Analytics Tool to Drive Insights**
     """)
 
     
@@ -598,11 +596,8 @@ elif selected_page == "Website":
         st.subheader("Weekly Promotion Performance")
 
         
-        st.markdown("### Raw Promotion Data (Preview)")
-        if not promo_top10.empty:
-            st.dataframe(promo_top10.head(10))
-        else:
-            st.info("No promotion data available for the selected date range.")
+    
+        
 
         
         global_promo = promo_top10.groupby("promo_clean", as_index=False).agg({
@@ -615,7 +610,7 @@ elif selected_page == "Website":
         global_top10 = global_promo.sort_values("total_profit", ascending=False).head(10)
 
         st.markdown("### Top 10 Promotions for the Selected Period")
-        st.dataframe(global_top10)
+        #st.dataframe(global_top10)
 
         
         profit_chart = alt.Chart(global_top10).mark_bar().encode(
@@ -630,17 +625,17 @@ elif selected_page == "Website":
                 alt.Tooltip("total_orders:Q", title="Orders", format=",.0f")
             ],
             color=alt.Color("promo_clean:N", legend=None)
-        ).properties(width=700, height=400, title="Global Top 10 Promotions by Total Profit")
+        ).properties(width=700, height=400)
         st.altair_chart(profit_chart, use_container_width=True)
 
         st.markdown("---")
-        st.subheader("Promotion Uplift Metrics (Daily Averages)")
+        #st.subheader("Promotion Uplift Metrics (Daily Averages)")
 
         if promo_uplift.empty:
             st.info("No promotion uplift data available for the selected date range.")
         else:
             
-            st.dataframe(promo_uplift.head(10))
+            #st.dataframe(promo_uplift.head(10))
 
             
             uplift_agg = promo_uplift.groupby("promo_clean", as_index=False).agg({
@@ -653,7 +648,7 @@ elif selected_page == "Website":
             top10_uplift = uplift_agg.sort_values("revenue_lift", ascending=False).head(10)
 
             st.markdown("### Top 10 Promotions by Average Revenue Lift (Global)")
-            st.dataframe(top10_uplift)
+            #st.dataframe(top10_uplift)
 
             # --- Create Bar Charts for Each Lift Metric ---
             revenue_lift_chart = alt.Chart(top10_uplift).mark_bar().encode(
@@ -686,7 +681,30 @@ elif selected_page == "Website":
             st.altair_chart(revenue_lift_chart, use_container_width=True)
             st.altair_chart(profit_lift_chart, use_container_width=True)
             st.altair_chart(orders_lift_chart, use_container_width=True)
-    
+        
+        with st.expander("❓ How Are the Lift Metrics Calculated?"):
+                st.write("**Revenue Lift**")
+                st.latex(r"""
+                \text{Revenue Lift (\%)} = \left(\frac{\text{Avg Daily Revenue}_{\text{promo}} - \text{Avg Daily Revenue}_{\text{baseline}}}{\text{Avg Daily Revenue}_{\text{baseline}}}\right) \times 100
+                """)
+
+                st.write("**Profit Lift**")
+                st.latex(r"""
+                \text{Profit Lift (\%)} = \left(\frac{\text{Avg Daily Profit}_{\text{promo}} - \text{Avg Daily Profit}_{\text{baseline}}}{\text{Avg Daily Profit}_{\text{baseline}}}\right) \times 100
+                """)
+
+                st.write("**Orders Lift**")
+                st.latex(r"""
+                \text{Orders Lift (\%)} = \left(\frac{\text{Avg Daily Orders}_{\text{promo}} - \text{Avg Daily Orders}_{\text{baseline}}}{\text{Avg Daily Orders}_{\text{baseline}}}\right) \times 100
+                """)
+
+                st.markdown("""
+                - **Avg Daily Revenue** is total revenue / number of active days.
+                - **Avg Daily Profit** is total profit / number of active days.
+                - **Avg Daily Orders** is order count / number of active days.
+                - Baseline = "NoPromotion" group.
+                """, unsafe_allow_html=True)
+
     # 4) Pricing Strategy Analysis
     
     with website_tabs[3]:
@@ -696,8 +714,8 @@ elif selected_page == "Website":
             st.info("No pricing strategy data available for the selected date range.")
         else:
             
-            st.markdown("#### Data Preview (Filtered)")
-            st.dataframe(pricing_strategy.head(10))
+            
+            
 
             
             agg_pricing = pricing_strategy.groupby("strategy_base", as_index=False).agg({
@@ -751,10 +769,8 @@ elif selected_page == "Website":
 
     
     # 5) Combined Pricing & Promotion Analysis
-    
     with website_tabs[4]:
         st.subheader("Combined Pricing & Promotion Analysis")
-        
         
         if not prom_combined.empty:
             
@@ -763,7 +779,6 @@ elif selected_page == "Website":
                 ascending=[False, False]
             )
             
-            
             best_combo = combined_df.iloc[0]
             st.markdown(
                 f"**Recommendation:** The best performing combination is: Pricing Strategy **{best_combo['pricingstrategy']}**, "
@@ -771,9 +786,7 @@ elif selected_page == "Website":
                 f"with Total Profit **${best_combo['Total_Profit']:,.2f}** and Profit Margin **{best_combo['Profit_Margin']:.2f}%**."
             )
             
-            
             top5 = combined_df.head(5)
-            
             
             scatter_chart = alt.Chart(top5).mark_circle(size=100).encode(
                 x=alt.X("Total_Profit:Q", title="Total Profit (USD)"),
@@ -795,10 +808,31 @@ elif selected_page == "Website":
             )
             
             st.altair_chart(scatter_chart, use_container_width=True)
+            
+            # Expander to show how the best pricing strategy was determined.
+            with st.expander("❓ How is the Best Pricing Strategy & Promotion Combination Determined?"):
+                        st.markdown("""
+                    **Steps to Determine the Best Combination:**
+
+                    1. **Data Aggregation**  
+                    Key metrics such as *Total Revenue*, *Total Profit*, and *Profit Margin* are aggregated for each combination.
+
+                    2. **Sorting Criteria**  
+                    We sort by **Total Profit** (descending) and then **Profit Margin** (descending). The combination with the highest profit and margin is deemed "best."
+
+                    3. **Selection**  
+                    After sorting, the first row (`combined_df.iloc[0]`) is the recommended combination, maximizing both profit and efficiency.
+                    """)
+
+                        st.write("**Key Formula(s) Used**")
+
+                        # Example: Profit Margin in latex
+                        st.latex(r"""\text{Profit Margin (\%)} = \left( \frac{\text{Total Profit}}{\text{Total Revenue}} \right) \times 100""")
         else:
-            st.info("No combined pricing & promotion data available.")
+                st.info("No combined pricing & promotion data available.")
 
-
+        
+            
     
     # 6) Overall Top Campaigns
     
